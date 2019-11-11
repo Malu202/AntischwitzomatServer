@@ -114,5 +114,14 @@ function checkNotifications() {
 
 app.get('/s', function(req, res){
   console.log("trying to send")
-  push.send("hi");
+  for(var i = 0; i<subscriptions.length; i++){
+    push.send("hi", subscriptions[i]); 
+  }
 })
+
+var subscriptions = [];
+app.post('/notifications', function(req,res){
+  subscriptions.push(req.body);
+  res.send();
+  console.log(subscriptions)
+});
