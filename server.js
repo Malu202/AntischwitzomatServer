@@ -117,6 +117,7 @@ app.get('/s', function(req, res){
   for(var i = 0; i<subscriptions.length; i++){
     push.send("hi", subscriptions[i]); 
   }
+  res.send("Sent " + subscriptions.length + " notifications!");
 })
 
 var subscriptions = [];
