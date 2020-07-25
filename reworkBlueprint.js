@@ -16,7 +16,7 @@
 
 // Notifications
 [
-    { userid: "9876", type: "greaterThan", value: "temperature", roomId1: "asfd", roomId2: "jklo", offset: 2, notificationKeys: "..." },
+    { userid: "9876", type: "greaterThan", value: "temperature", roomId1: "asfd", roomId2: "jklo", amount: 2, notificationKeys: "..." },
     { userid: "9876", type: "falling", value: "pressure", roomId1: "jklo", roomId2: null, amount: 0.5, notificationKeys: "..." }
 ]
 // Dh notification wenn Balkontemperatur um 2 Grad höher ist als Wohnungsdurchschnittstemperatur oder
