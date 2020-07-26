@@ -27,35 +27,42 @@ db.serialize(function () {
         );`);
 
         db.run(`CREATE TABLE Measurements (
-            time DATETIME,
+            time DATETIME NOT NULL,
             temperature DECIMAL,
             humidity DECIMAL,
             pressure DECIMAL,
-            sensor_id DECIMAL,
+            sensor_id DECIMAL NOT NULL,
             FOREIGN KEY (sensor_id) REFERENCES Sensors(sensor_id)
         );`);
 
         db.run(`CREATE TABLE Rooms (
             room_id INTEGER PRIMARY KEY,
-            name TEXT,
+            user_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
             type TEXT,
-            sensor_id1 DECIMAL,
+            sensor_id1 DECIMAL NOT NULL,
             sensor_id2 DECIMAL,
+            FOREIGN KEY (user_id) REFERENCES Users (user_id),
             FOREIGN KEY (sensor_id1) REFERENCES Sensors (sensor_id),
             FOREIGN KEY (sensor_id2) REFERENCES Sensors (sensor_id)        
         );`);
 
+        db.run(`CREATE TABLE Users (
+            user_id INTEGER PRIMARY KEY
+        );`);
+
         db.run(`CREATE TABLE Notifications (
-            user_id INTEGER PRIMARY KEY NOT NULL,
+            user_id INTEGER NOT NULL,
             type TEXT,
-            value TEXT,
-            room_id1 INTEGER,
+            value TEXT NOT NULL,
+            room_id1 INTEGER NOT NULL,
             room_id2 INTEGER,
             amount INTEGER,
             message TEXT,
-            endpoint TEXT,
-            key_p256dh TEXT,
-            key_auth TEXT,
+            endpoint TEXT NOT NULL,
+            key_p256dh TEXT NOT NULL,
+            key_auth TEXT NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES Users (user_id),
             FOREIGN KEY (room_id1) REFERENCES Rooms (room_id),
             FOREIGN KEY (room_id2) REFERENCES Rooms (room_id)
         );`);
@@ -91,7 +98,11 @@ app.post('/measurements', function (request, response) {
 });
 
 app.delete('/measurements', function (request, response) {
+    db.run('DELETE FROM Sensors');
     db.run('DELETE FROM Measurements');
+    db.run('DELETE FROM Rooms');
+    db.run('DELETE FROM Users');
+    db.run('DELETE FROM Notifications');
     response.send("deleted database");
 });
 
@@ -120,23 +131,19 @@ app.get('/s', function (req, res) {
                 endpoint: notifications[i].endpoint,
                 keys: {
                     p256dh: notifications[i].key_p256dh,
-                    auth: notifications[i].auth
+                    auth: notifications[i].key_auth
                 }
             })
         };
         res.send("sent " + notifications.length + " request(s)")
     });
-
-
-    // console.log("trying to send")
-    // for (var i = 0; i < subscriptions.length; i++) {
-    //     push.send("hi", subscriptions[i]);
-    // }
 })
 
 app.post('/notifications', function (req, res) {
     console.log(req.body);
-    addNewNotification(req.body.user_id,
+    let user_id = req.body.user_id;
+    addNewNotification(res,
+        user_id,
         req.body.type,
         req.body.value,
         req.body.room_id1,
@@ -144,15 +151,72 @@ app.post('/notifications', function (req, res) {
         req.body.amount,
         req.body.message,
         req.body.endpoint,
-        req.body.key_p256dh,
-        req.body.key_auth);
-    res.send();
+        req.body.keys.p256dh,
+        req.body.keys.auth);
 });
 
-function addNewNotification(user_id, type, value, room_id1, room_id2, amount, message, endpoint, key_p256dh, key_auth) {
-    db.run(`INSERT INTO Notifications (user_id, type, value, room_id1, room_id2, amount, message, endpoint, key_p256dh, key_auth)
-            VALUES ((?),(?),(?),(?),(?),(?),(?),(?),(?),(?))`,
-        [user_id, type, value, room_id1, room_id2, amount, message, endpoint, key_p256dh, key_auth]);
+app.post('/rooms', function (req, res) {
+    let user_id = req.body.user_id;
+    addNewId("Users", "user_id", user_id, function (err, id) {
+        if (err) res.send(err);
+        db.run(`INSERT INTO Rooms(user_id, name, type, sensor_id1, sensor_id2)
+                VALUES((?),(?),(?),(?),(?))`,
+            [user_id, req.body.name, req.body.type, req.body.sensor_id1, req.body.sensor_id2], function (err) {
+                if (err) console.log(err);
+                res.send({ "user_id": user_id, error: err });
+            });
+    });
+});
+app.get('/rooms', function (req, res) {
+    let user_id = req.body.user_id;
+    db.all('SELECT * from Rooms WHERE user_id=(?)', [user_id], function (err, rows) {
+        response.send(JSON.stringify(rows));
+    });
+});
+app.get('/sensors', function (req, res) {
+    db.all('SELECT * from Sensors', function (err, rows) {
+        response.send(JSON.stringify(rows));
+    });
+});
+app.get('/notifications', function (req, res) {
+    let user_id = req.body.user_id;
+    db.all('SELECT * from Notifications WHERE user_id=(?)', [user_id], function (err, rows) {
+        response.send(JSON.stringify(rows));
+    });
+});
+
+function addNewId(table, column, id, cb) {
+    db.run(`INSERT INTO ${table}(${column}) VALUES(?)`, id,
+        function (err) {
+            if (err) {
+                if (err.errno != 19) {
+                    console.log(err);
+                    cb(err, null)
+                } else {
+                    err = null;
+                    console.log("Existing user (" + id + ") registered a notification");
+                }
+            } else {
+                console.log("New user with id: " + this.lastID);
+                id = this.lastID
+            }
+            cb(err, id);
+        });
+}
+
+function addNewNotification(res, user_id, type, value, room_id1, room_id2, amount, message, endpoint, key_p256dh, key_auth) {
+    addNewId("Users", "user_id", user_id, function (err, id) {
+        console.log("hiho: " + err)
+        if (err) res.send(err)
+        else {
+            db.run(`INSERT INTO Notifications (user_id, type, value, room_id1, room_id2, amount, message, endpoint, key_p256dh, key_auth)
+        VALUES ((?),(?),(?),(?),(?),(?),(?),(?),(?),(?))`,
+                [id, type, value, room_id1, room_id2, amount, message, endpoint, key_p256dh, key_auth], function (err2) {
+                    console.log(err2)
+                    res.send({ "user_id": id, error: err2.stack });
+                });
+        }
+    });
 }
 
 
