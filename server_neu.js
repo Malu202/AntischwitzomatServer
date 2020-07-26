@@ -52,6 +52,7 @@ db.serialize(function () {
             room_id1 INTEGER,
             room_id2 INTEGER,
             amount INTEGER,
+            message TEXT,
             endpoint TEXT,
             key_p256dh TEXT,
             key_auth TEXT,
@@ -102,13 +103,7 @@ function addNewMeasurement(sensor_id, time, temperature, humidity, pressure) {
     });
 }
 
-app.get('/stations', function (request, response) {
-    db.all('SELECT * from Stations', function (err, rows) {
-        response.send(JSON.stringify(rows));
-    });
-});
-
-var listener = app.listen(/*process.env.PORT*/ 5000, function () {
+var listener = app.listen(/*process.env.PORT*/ 1337, function () {
     console.log('Your app is listening on port ' + listener.address().port);
 });
 
@@ -117,34 +112,48 @@ function checkNotifications() {
 }
 
 app.get('/s', function (req, res) {
-    console.log("trying to send")
-    for (var i = 0; i < subscriptions.length; i++) {
-        push.send("hi", subscriptions[i]);
-    }
+    db.all('SELECT * from Notifications', function (err, rows) {
+        let notifications = rows;
+        console.log(notifications)
+        for (let i = 0; i < notifications.length; i++) {
+            push.send("howdy", {
+                endpoint: notifications[i].endpoint,
+                keys: {
+                    p256dh: notifications[i].key_p256dh,
+                    auth: notifications[i].auth
+                }
+            })
+        };
+        res.send("sent " + notifications.length + " request(s)")
+    });
+
+
+    // console.log("trying to send")
+    // for (var i = 0; i < subscriptions.length; i++) {
+    //     push.send("hi", subscriptions[i]);
+    // }
 })
 
-var subscriptions = [];
 app.post('/notifications', function (req, res) {
-    subscriptions.push(req.body);
+    console.log(req.body);
+    addNewNotification(req.body.user_id,
+        req.body.type,
+        req.body.value,
+        req.body.room_id1,
+        req.body.room_id2,
+        req.body.amount,
+        req.body.message,
+        req.body.endpoint,
+        req.body.key_p256dh,
+        req.body.key_auth);
     res.send();
-    console.log(subscriptions)
 });
 
-app.get('/test', function (req, res) {
-    res.send("nice");
-
-});
-
-
-
-
-
-
-
-
-
-
-
+function addNewNotification(user_id, type, value, room_id1, room_id2, amount, message, endpoint, key_p256dh, key_auth) {
+    db.run(`INSERT INTO Notifications (user_id, type, value, room_id1, room_id2, amount, message, endpoint, key_p256dh, key_auth)
+            VALUES ((?),(?),(?),(?),(?),(?),(?),(?),(?),(?))`,
+        [user_id, type, value, room_id1, room_id2, amount, message, endpoint, key_p256dh, key_auth]);
+}
 
 
 
