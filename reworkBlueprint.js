@@ -10,14 +10,17 @@
 
 // Rooms
 [
-    { roomId: "asfd", name: "Wohnung", type: "average", sensorId1: "12345", sensorId2: "67890" },
-    { roomId: "jklo", name: "Balkon", type: "single", sensorId1: "99999", sensorId2: null }
+    { roomId: "asfd", userId: "9876", name: "Wohnung", type: "average", sensorId1: "12345", sensorId2: "67890" },
+    { roomId: "jklo", userId: "9876", name: "Balkon", type: "single", sensorId1: "99999", sensorId2: null }
 ]
-
+// Users
+[
+    { userId: "1" }
+]
 // Notifications
 [
-    { userid: "9876", type: "greaterThan", value: "temperature", roomId1: "asfd", roomId2: "jklo", amount: 2, notificationKeys: "..." },
-    { userid: "9876", type: "falling", value: "pressure", roomId1: "jklo", roomId2: null, amount: 0.5, notificationKeys: "..." }
+    { userid: "9876", type: "greaterThan", value: "temperature", roomId1: "asfd", roomId2: "jklo", amount: 2, message: "Fenster zu!", notificationKeys: "..." },
+    { userid: "9876", type: "falling", value: "pressure", roomId1: "jklo", roomId2: null, amount: 0.5, message: "Derbes Unwetter kommt!", notificationKeys: "..." }
 ]
 // Dh notification wenn Balkontemperatur um 2 Grad höher ist als Wohnungsdurchschnittstemperatur oder
 // der Luftdruck um mehr als 0.5 bar / minute sinkt

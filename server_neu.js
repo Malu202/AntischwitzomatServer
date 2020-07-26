@@ -27,11 +27,11 @@ db.serialize(function () {
         );`);
 
         db.run(`CREATE TABLE Measurements (
+            sensor_id DECIMAL NOT NULL,
             time DATETIME NOT NULL,
             temperature DECIMAL,
             humidity DECIMAL,
             pressure DECIMAL,
-            sensor_id DECIMAL NOT NULL,
             FOREIGN KEY (sensor_id) REFERENCES Sensors(sensor_id)
         );`);
 
