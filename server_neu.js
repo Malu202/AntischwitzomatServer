@@ -52,6 +52,7 @@ db.serialize(function () {
         );`);
 
         db.run(`CREATE TABLE Notifications (
+            notification_id INTEGER PRIMARY KEY,
             user_id INTEGER NOT NULL,
             type TEXT,
             value TEXT NOT NULL,
@@ -83,6 +84,8 @@ app.post('/measurements', function (request, response) {
     var pres = request.body.p / 10000;
     var date = request.body.d;
     var date = new Date(date);
+    response.send("saved " + temp + " " + hum + " " + pres + " at " + sqllite_date);
+    console.log(request.body);
 
     if (isNaN(date.getMilliseconds())) {
         date = new Date();
@@ -90,11 +93,20 @@ app.post('/measurements', function (request, response) {
     var sqllite_date = date.toISOString();
 
     //if(id==null) create new id
-    db.run("INSERT INTO Sensors (sensor_id)  VALUES ((?))", [sensor_id]);
-    response.send("saved " + temp + " " + hum + " " + pres + " at " + sqllite_date);
-    addNewMeasurement(sensor_id, sqllite_date, temp, hum, pres);
-    checkNotifications(sqllite_date, sensor_id, temp, hum, pres);
-    console.log(request.body);
+    addNewId("SENSORS", "sensor_id", sensor_id, function (err, newSensorId) {
+        //db.run("INSERT INTO Sensors (sensor_id)  VALUES ((?))", [sensor_id]);
+        // addNewMeasurement(newSensorId, sqllite_date, temp, hum, pres);
+        db.serialize(function () {
+            db.run('INSERT INTO Measurements (time, temperature, humidity, pressure, sensor_id) VALUES ((?),(?),(?),(?),(?))', [sqllite_date, temp, hum, pres, sensor_id]);
+            db.run('SELECT room_id from Rooms WHERE sensor_id1=(?)', [sensor_id], function (err, room_ids) {
+                console.log(room_ids)
+
+                // for (let i = 0; i < room_ids.length; i++) {
+                //     console.log("room_id: " + room_ids[i])
+                // }
+            });
+        });
+    })
 });
 
 app.delete('/measurements', function (request, response) {
@@ -112,14 +124,15 @@ function addNewMeasurement(sensor_id, time, temperature, humidity, pressure) {
     db.serialize(function () {
         db.run('INSERT INTO Measurements (time, temperature, humidity, pressure, sensor_id) VALUES ((?),(?),(?),(?),(?))', [time, temperature, humidity, pressure, sensor_id]);
     });
+    checkNotifications(sensor_id, time, temperature, humidity, pressure);
 }
 
 var listener = app.listen(/*process.env.PORT*/ 1337, function () {
     console.log('Your app is listening on port ' + listener.address().port);
 });
 
-function checkNotifications() {
-    //TODO
+function checkNotifications(sensor_id, time, temperature, humidity, pressure) {
+
 }
 
 app.get('/s', function (req, res) {
@@ -161,43 +174,55 @@ app.post('/rooms', function (req, res) {
         if (err) res.send(err);
         db.run(`INSERT INTO Rooms(user_id, name, type, sensor_id1, sensor_id2)
                 VALUES((?),(?),(?),(?),(?))`,
-            [user_id, req.body.name, req.body.type, req.body.sensor_id1, req.body.sensor_id2], function (err) {
+            [id, req.body.name, req.body.type, req.body.sensor_id1, req.body.sensor_id2], function (err) {
                 if (err) console.log(err);
-                res.send({ "user_id": user_id, error: err });
+                res.send({ "user_id": id, error: err });
             });
     });
 });
 app.get('/rooms', function (req, res) {
-    let user_id = req.body.user_id;
+    let user_id = req.query.user_id;
     db.all('SELECT * from Rooms WHERE user_id=(?)', [user_id], function (err, rows) {
-        response.send(JSON.stringify(rows));
+        res.send(JSON.stringify(rows));
     });
 });
 app.get('/sensors', function (req, res) {
     db.all('SELECT * from Sensors', function (err, rows) {
-        response.send(JSON.stringify(rows));
+        res.send(JSON.stringify(rows));
     });
 });
 app.get('/notifications', function (req, res) {
-    let user_id = req.body.user_id;
-    db.all('SELECT * from Notifications WHERE user_id=(?)', [user_id], function (err, rows) {
-        response.send(JSON.stringify(rows));
+    let user_id = req.query.user_id;
+    db.all(`SELECT
+    notification_id,
+    type,
+    value,
+    room_id1,
+    room_id2,
+    amount,
+    message
+    FROM Notifications WHERE user_id=(?);`, [user_id], function (err, rows) {
+        if (err) console.log(err)
+        console.log(rows)
+        res.send(JSON.stringify(rows));
     });
 });
 
 function addNewId(table, column, id, cb) {
+    if (id == undefined || id == "undefined" || id == "null") id = null;
     db.run(`INSERT INTO ${table}(${column}) VALUES(?)`, id,
         function (err) {
             if (err) {
                 if (err.errno != 19) {
+                    console.log(`error when adding id ${column} into ${table}`)
                     console.log(err);
                     cb(err, null)
                 } else {
                     err = null;
-                    console.log("Existing user (" + id + ") registered a notification");
+                    console.log(`Existing id (${column}): ` + id + " returned");
                 }
             } else {
-                console.log("New user with id: " + this.lastID);
+                console.log(`New id (${column}): ` + this.lastID);
                 id = this.lastID
             }
             cb(err, id);
@@ -206,14 +231,16 @@ function addNewId(table, column, id, cb) {
 
 function addNewNotification(res, user_id, type, value, room_id1, room_id2, amount, message, endpoint, key_p256dh, key_auth) {
     addNewId("Users", "user_id", user_id, function (err, id) {
-        console.log("hiho: " + err)
-        if (err) res.send(err)
+        if (err) {
+            res.send(err)
+            console.log(err)
+        }
         else {
             db.run(`INSERT INTO Notifications (user_id, type, value, room_id1, room_id2, amount, message, endpoint, key_p256dh, key_auth)
         VALUES ((?),(?),(?),(?),(?),(?),(?),(?),(?),(?))`,
                 [id, type, value, room_id1, room_id2, amount, message, endpoint, key_p256dh, key_auth], function (err2) {
                     console.log(err2)
-                    res.send({ "user_id": id, error: err2.stack });
+                    res.send({ "user_id": id, error: err2, notification_id: this.lastID });
                 });
         }
     });
