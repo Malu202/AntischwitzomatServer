@@ -186,6 +186,13 @@ app.get('/rooms', function (req, res) {
         res.send(JSON.stringify(rows));
     });
 });
+app.delete('/rooms', function (req, res) {
+    let room_id = req.query.room_id;
+    db.all('DELETE from Rooms WHERE room_id=(?);', [room_id], function (err, rows) {
+        if (err) console.log(err)
+        res.send(JSON.stringify(err));
+    });
+});
 app.get('/sensors', function (req, res) {
     db.all('SELECT * from Sensors', function (err, rows) {
         res.send(JSON.stringify(rows));
@@ -207,7 +214,13 @@ app.get('/notifications', function (req, res) {
         res.send(JSON.stringify(rows));
     });
 });
-
+app.delete('/notifications', function (req, res) {
+    let notification_id = req.query.notification_id;
+    db.all('DELETE from Notifications WHERE notification_id=(?);', [notification_id], function (err, rows) {
+        if (err) console.log(err)
+        res.send(JSON.stringify(err));
+    });
+});
 function addNewId(table, column, id, cb) {
     if (id == undefined || id == "undefined" || id == "null") id = null;
     db.run(`INSERT INTO ${table}(${column}) VALUES(?)`, id,
