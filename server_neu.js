@@ -231,8 +231,8 @@ function getRoomValues(room, latestOnly, cb) {
                 }
             }
 
-            sensor2MeasurementsInterpolated = [];
-            sensor2Index = 0;
+            let sensor2MeasurementsInterpolated = [];
+            let sensor2Index = 0;
             for (let i = 0; i < sensor1Measurements.length; i++) {
                 let temperature, humidity, pressure;
 
@@ -277,7 +277,7 @@ function getRoomValues(room, latestOnly, cb) {
 }
 
 
-averageMeasurement = function (roomId, data1, data2) {
+function averageMeasurement(roomId, data1, data2) {
     if (data1.length != data2.length) {
         let e = new Error("for averaging measurements both data arrays need to be of same length")
         console.log(e);
