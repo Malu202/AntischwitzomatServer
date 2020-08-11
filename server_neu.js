@@ -98,15 +98,20 @@ app.post('/measurements', function (request, response) {
         // addNewMeasurement(newSensorId, sqllite_date, temp, hum, pres);
         db.serialize(function () {
             db.run('INSERT INTO Measurements (time, temperature, humidity, pressure, sensor_id) VALUES ((?),(?),(?),(?),(?))', [sqllite_date, temp, hum, pres, sensor_id]);
-            db.run('SELECT room_id from Rooms WHERE sensor_id1=(?)', [sensor_id], function (err, room_ids) {
-                console.log(room_ids)
 
-                // for (let i = 0; i < room_ids.length; i++) {
-                //     console.log("room_id: " + room_ids[i])
-                // }
+            db.all('SELECT room_id from Rooms WHERE sensor_id1=(?) OR sensor_id2=(?)', [sensor_id, sensor_id], function (err, room_ids) {
+
+                for (let i = 0; i < room_ids.length; i++) {
+                    let roomId = room_ids[i].room_id;
+                    db.all('SELECT * from Notifications WHERE room_id1=(?) OR room_id2=(?)', [roomId, roomId], function (err, notifications) {
+                        for (let i = 0; i < notifications.length; i++) {
+                            checkNotification(notifications[i]);
+                        }
+                    });
+                }
             });
         });
-    })
+    });
 });
 
 app.delete('/measurements', function (request, response) {
@@ -118,42 +123,197 @@ app.delete('/measurements', function (request, response) {
     response.send("deleted database");
 });
 
-function addNewMeasurement(sensor_id, time, temperature, humidity, pressure) {
-    const dataString = '"' + time + '", "' + temperature + '", "' + humidity + '", "' + pressure + '"';
-    console.log("saving: " + dataString);
-    db.serialize(function () {
-        db.run('INSERT INTO Measurements (time, temperature, humidity, pressure, sensor_id) VALUES ((?),(?),(?),(?),(?))', [time, temperature, humidity, pressure, sensor_id]);
-    });
-    checkNotifications(sensor_id, time, temperature, humidity, pressure);
-}
 
 var listener = app.listen(/*process.env.PORT*/ 1337, function () {
     console.log('Your app is listening on port ' + listener.address().port);
 });
 
-function checkNotifications(sensor_id, time, temperature, humidity, pressure) {
+function checkNotification(notification) {
+    let type = notification.type.toLowerCase().replace(" ", "");
+    let value = notification.value.toLowerCase().replace(" ", "");
+    let room_id1 = notification.room_id1;
+    let room_id2 = notification.room_id2;
+    let amount = notification.amount;
+    let message = notification.message;
 
+    let room1Value;
+    let room2Value;
+    db.serialize(function () {
+        db.all('SELECT * from Rooms WHERE room_id=(?) OR room_id=(?)', [room_id1, room_id2], function (err, room) {
+            getRoomValues(room[0], true, function (room1Values) {
+                getRoomValues(room[1], true, function (room2Values) {
+
+                    let room1Value = room1Values[0][value];
+                    let room2Value = null;
+                    if (room_id2 != null) room2Values[0][value];
+
+                    switch (type) {
+                        case "greaterthan":
+                            if (room_id2 == null && room1Value > amount) {
+                                sendNotification(notification)
+                            } else if (room1Value > (room2Value + amount)) {
+                                sendNotification(notification)
+                            }
+                            break;
+                        case "lessthan":
+                            if (room_id2 == null && room1Value < amount) {
+                                sendNotification(notification)
+                            } else if (room1Value < (room2Value - amount)) {
+                                sendNotification(notification)
+                            }
+                            break;
+
+                        default:
+                            break;
+                    }
+
+                });
+            });
+        });
+    });
 }
 
-app.get('/s', function (req, res) {
-    db.all('SELECT * from Notifications', function (err, rows) {
-        let notifications = rows;
-        console.log(notifications)
-        for (let i = 0; i < notifications.length; i++) {
-            push.send("howdy", {
-                endpoint: notifications[i].endpoint,
-                keys: {
-                    p256dh: notifications[i].key_p256dh,
-                    auth: notifications[i].key_auth
+function sendNotification(notification) {
+    push.send(notification.message, {
+        endpoint: notification.endpoint,
+        keys: {
+            p256dh: notification.key_p256dh,
+            auth: notification.key_auth
+        }
+    })
+}
+
+function getRoomValues(room, latestOnly, cb) {
+    if (room == null) {
+        cb(null);
+        return;
+    }
+
+    let room_id = room.room_id;
+    let user_id = room.user_id;
+    let name = room.name;
+    let type = room.type.toLowerCase();
+    let sensor_id1 = room.sensor_id1;
+    let sensor_id2 = room.sensor_id2;
+
+    let query = 'SELECT sensor_id, time, temperature, humidity, pressure from Measurements WHERE sensor_id=(?) OR sensor_id=(?) ORDER BY sensor_id, time;'
+    if (latestOnly) query = 'SELECT sensor_id, max(time), temperature, humidity, pressure from Measurements WHERE sensor_id=(?) OR sensor_id=(?) GROUP BY sensor_id'
+    db.all(query, [sensor_id1, sensor_id2], function (err, measurements) {
+        if (err) {
+            console.log(err);
+            cb(err, null)
+        }
+        if (latestOnly) {
+            for (let i = 0; i < measurements.length; i++) {
+                measurements[i].time = measurements[i]['max(time)'];
+                delete measurements[i]['max(time)'];
+            }
+        }
+        if (sensor_id2 == null && !err) {
+            for (let i = 0; i < measurements.length; i++) {
+                delete measurements[i].sensor_id;
+                measurements[i].room_id = room_id;
+            }
+            cb(measurements);
+        } else {
+            if (measurements.length == 0) cb("No measurements in database", null)
+            let sensor1Measurements = [];
+            let sensor2Measurements = [];
+
+            //Database returns values for both sensors in one json, now we split
+            let firstSensorId = measurements[0].sensor_id;
+            for (let i = 0; i < measurements.length; i++) {
+                if (measurements[i].sensor_id != firstSensorId || i == measurements.length - 1) {
+                    sensor1Measurements = measurements.slice(0, i);
+                    sensor2Measurements = measurements.slice(i);
+
+                    break;
                 }
-            })
-        };
-        res.send("sent " + notifications.length + " request(s)")
-    });
-})
+            }
+
+            sensor2MeasurementsInterpolated = [];
+            sensor2Index = 0;
+            for (let i = 0; i < sensor1Measurements.length; i++) {
+                let temperature, humidity, pressure;
+
+                let sensor1Date = new Date(sensor1Measurements[i].time);
+                for (let j = sensor2Index; j < sensor2Measurements.length; j++) {
+                    let sensor2Date = new Date(sensor2Measurements[j].time);
+                    if (sensor2Date.getTime() > sensor1Date.getTime()) {
+                        if (j == 0) {
+                            temperature = sensor2Measurements[j].temperature;
+                            humidity = sensor2Measurements[j].humidity;
+                            pressure = sensor2Measurements[j].pressure;
+                        } else {
+                            let previousSensor2Date = new Date(sensor2Measurements[j - 1].time);
+                            let interpolationFactor = (sensor2Date.getTime() - sensor1Date.getTime()) / (sensor2Date.getTime() - previousSensor2Date.getTime());
+                            temperature = sensor2Measurements[j].temperature + (sensor2Measurements[j].temperature - sensor2Measurements[j - 1].temperature) * interpolationFactor;
+                            humidity = sensor2Measurements[j].humidity + (sensor2Measurements[j].humidity - sensor2Measurements[j - 1].humidity) * interpolationFactor;
+                            pressure = sensor2Measurements[j].pressure + (sensor2Measurements[j].pressure - sensor2Measurements[j - 1].pressure) * interpolationFactor;
+                        }
+                        sensor2MeasurementsInterpolated.push({ /*sensor_id: sensor2Measurements.sensor_id,*/ time: sensor1Measurements[i].time, "temperature": temperature, "humidity": humidity, "pressure": pressure });
+                        break;
+                    }
+                    if (j == sensor2Measurements.length - 1 && sensor2Date.getTime() < sensor1Date.getTime()) {
+                        temperature = sensor2Measurements[j].temperature;
+                        humidity = sensor2Measurements[j].humidity;
+                        pressure = sensor2Measurements[j].pressure;
+                        sensor2MeasurementsInterpolated.push({ sensor_id: sensor2Measurements.sensor_id, time: sensor1Measurements[i].time, "temperature": temperature, "humidity": humidity, "pressure": pressure });
+                        break;
+                    }
+                    sensor2Index = j;
+                }
+            }
+
+            switch (type) {
+                case "average":
+                    cb(averageMeasurement(room_id, sensor1Measurements, sensor2MeasurementsInterpolated));
+                    break;
+                default:
+                    break;
+            }
+        }
+    })
+}
+
+
+averageMeasurement = function (roomId, data1, data2) {
+    if (data1.length != data2.length) {
+        let e = new Error("for averaging measurements both data arrays need to be of same length")
+        console.log(e);
+        return e;
+    }
+    let output = [];
+    for (let i = 0; i < data1.length; i++) {
+        output.push({
+            "roomId": roomId,
+            time: data1[i].time,
+            temperature: (data1[i].temperature + data2[i].temperature) * 0.5,
+            humidity: (data1[i].humidity + data2[i].humidity) * 0.5,
+            pressure: (data1[i].pressure + data2[i].pressure) * 0.5,
+        });
+    }
+    return output;
+}
+
+// app.get('/s', function (req, res) {
+//     db.all('SELECT * from Notifications', function (err, rows) {
+//         let notifications = rows;
+//         console.log(notifications)
+//         for (let i = 0; i < notifications.length; i++) {
+//             push.send("howdy", {
+//                 endpoint: notifications[i].endpoint,
+//                 keys: {
+//                     p256dh: notifications[i].key_p256dh,
+//                     auth: notifications[i].key_auth
+//                 }
+//             })
+//         };
+//         res.send("sent " + notifications.length + " request(s)")
+//     });
+// })
 
 app.post('/notifications', function (req, res) {
-    console.log(req.body);
     let user_id = req.body.user_id;
     addNewNotification(res,
         user_id,
@@ -210,7 +370,6 @@ app.get('/notifications', function (req, res) {
     message
     FROM Notifications WHERE user_id=(?);`, [user_id], function (err, rows) {
         if (err) console.log(err)
-        console.log(rows)
         res.send(JSON.stringify(rows));
     });
 });
