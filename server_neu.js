@@ -128,30 +128,45 @@ app.delete('/measurements', function (request, response) {
 
 
 app.get('/roommeasurements', function (request, response) {
-    let roomsStrings = [];
-    roomsStrings = roomsStrings.concat(request.query.rooms);
-    let rooms = [];
-    for (let i = 0; i < roomsStrings.length; i++) {
-        let roomId = parseInt(roomsStrings[i]);
-        if (!isNaN(roomId) && roomId != null && roomId != undefined) {
-            rooms.push(roomId);
-        }
-    }
+    // let roomsStrings = [];
+    // roomsStrings = roomsStrings.concat(request.query.rooms);
+    // let rooms = [];
+    // for (let i = 0; i < roomsStrings.length; i++) {
+    //     let roomId = parseInt(roomsStrings[i]);
+    //     if (!isNaN(roomId) && roomId != null && roomId != undefined) {
+    //         rooms.push(roomId);
+    //     }
+    // }
 
-    let arguments = rooms.map(function () { return '(?)' }).join(',');
-    db.all(`SELECT * from Rooms WHERE room_id IN (${arguments})`, rooms, function (err, rows) {
-        if (err) console.log(err);
-        if (rooms.length == 0) response.send("no roomIds in url query");
+    // let arguments = rooms.map(function () { return '(?)' }).join(',');
+    // db.all(`SELECT * from Rooms WHERE room_id IN (${arguments})`, rooms, function (err, rows) {
+    //     if (err) console.log(err);
+    //     if (rooms.length == 0) response.send("no roomIds in url query");
 
-        let output = {};
-        for (let i = 0; i < rows.length; i++) {
-            getRoomValues(rows[i], false, function (values) {
-                output[rows[i].room_id] = values;
-                if (Object.keys(output).length == rows.length) response.send(output);
-            })
+    //     let output = {};
+    //     for (let i = 0; i < rows.length; i++) {
+    //         getRoomValues(rows[i], false, function (values) {
+    //             output[rows[i].room_id] = values;
+    //             if (Object.keys(output).length == rows.length) response.send(output);
+    //         })
+    //     }
+    // });
+    let user_id = request.query.user_id;
+    db.all(`SELECT * from Rooms WHERE user_id=(?)`, [user_id], function (err, rows) {
+        if (err) {
+            console.log(err);
+            response.send(err)
+        } else if (rows.length == 0) response.send("No Rooms for this user_id");
+        else {
+            let output = {};
+            for (let i = 0; i < rows.length; i++) {
+                getRoomValues(rows[i], false, function (values) {
+                    output[rows[i].room_id] = values;
+                    if (Object.keys(output).length == rows.length) response.send(output);
+                })
+            }
         }
     });
-
 });
 
 
