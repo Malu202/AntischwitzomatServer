@@ -100,10 +100,13 @@ app.post('/measurements', function (request, response) {
             db.run('INSERT INTO Measurements (time, temperature, humidity, pressure, sensor_id) VALUES ((?),(?),(?),(?),(?))', [sqllite_date, temp, hum, pres, sensor_id]);
 
             db.all('SELECT room_id from Rooms WHERE sensor_id1=(?) OR sensor_id2=(?)', [sensor_id, sensor_id], function (err, room_ids) {
-
+                console.log("updating " + room_ids.length + " rooms");
                 for (let i = 0; i < room_ids.length; i++) {
                     let roomId = room_ids[i].room_id;
                     db.all('SELECT * from Notifications WHERE room_id1=(?) OR room_id2=(?)', [roomId, roomId], function (err, notifications) {
+                        console.log("checking " + notifications.length + " notifications");
+
+
                         for (let i = 0; i < notifications.length; i++) {
                             checkNotification(notifications[i]);
                         }
@@ -124,7 +127,35 @@ app.delete('/measurements', function (request, response) {
 });
 
 
-var listener = app.listen(/*process.env.PORT*/ 1337, function () {
+app.get('/roommeasurements', function (request, response) {
+    let roomsStrings = [];
+    roomsStrings = roomsStrings.concat(request.query.rooms);
+    let rooms = [];
+    for (let i = 0; i < roomsStrings.length; i++) {
+        let roomId = parseInt(roomsStrings[i]);
+        if (!isNaN(roomId) && roomId != null && roomId != undefined) {
+            rooms.push(roomId);
+        }
+    }
+
+    let arguments = rooms.map(function () { return '(?)' }).join(',');
+    db.all(`SELECT * from Rooms WHERE room_id IN (${arguments})`, rooms, function (err, rows) {
+        if (err) console.log(err);
+        if (rooms.length == 0) response.send("no roomIds in url query");
+
+        let output = {};
+        for (let i = 0; i < rows.length; i++) {
+            getRoomValues(rows[i], false, function (values) {
+                output[rows[i].room_id] = values;
+                if (Object.keys(output).length == rows.length) response.send(output);
+            })
+        }
+    });
+
+});
+
+
+var listener = app.listen(process.env.PORT, function () {
     console.log('Your app is listening on port ' + listener.address().port);
 });
 
@@ -145,8 +176,13 @@ function checkNotification(notification) {
 
                     let room1Value = room1Values[0][value];
                     let room2Value = null;
-                    if (room_id2 != null) room2Values[0][value];
 
+                    if (room_id2 != null) {
+                        room2Value = room2Values[0][value];
+                    }
+
+                    console.log("room1: " + room1Value);
+                    console.log("room2: " + room2Value);
                     switch (type) {
                         case "greaterthan":
                             if (room_id2 == null && room1Value > amount) {
@@ -174,6 +210,7 @@ function checkNotification(notification) {
 }
 
 function sendNotification(notification) {
+    console.log("sending notification")
     push.send(notification.message, {
         endpoint: notification.endpoint,
         keys: {
@@ -190,8 +227,6 @@ function getRoomValues(room, latestOnly, cb) {
     }
 
     let room_id = room.room_id;
-    let user_id = room.user_id;
-    let name = room.name;
     let type = room.type.toLowerCase();
     let sensor_id1 = room.sensor_id1;
     let sensor_id2 = room.sensor_id2;
@@ -296,22 +331,22 @@ function averageMeasurement(roomId, data1, data2) {
     return output;
 }
 
-// app.get('/s', function (req, res) {
-//     db.all('SELECT * from Notifications', function (err, rows) {
-//         let notifications = rows;
-//         console.log(notifications)
-//         for (let i = 0; i < notifications.length; i++) {
-//             push.send("howdy", {
-//                 endpoint: notifications[i].endpoint,
-//                 keys: {
-//                     p256dh: notifications[i].key_p256dh,
-//                     auth: notifications[i].key_auth
-//                 }
-//             })
-//         };
-//         res.send("sent " + notifications.length + " request(s)")
-//     });
-// })
+app.get('/s', function (req, res) {
+    db.all('SELECT * from Notifications', function (err, rows) {
+        let notifications = rows;
+        console.log(notifications)
+        for (let i = 0; i < notifications.length; i++) {
+            push.send("howdy", {
+                endpoint: notifications[i].endpoint,
+                keys: {
+                    p256dh: notifications[i].key_p256dh,
+                    auth: notifications[i].key_auth
+                }
+            })
+        };
+        res.send("sent " + notifications.length + " request(s)")
+    });
+})
 
 app.post('/notifications', function (req, res) {
     let user_id = req.body.user_id;
