@@ -156,7 +156,7 @@ app.get('/roommeasurements', function (request, response) {
         if (err) {
             console.log(err);
             response.send(err)
-        } else if (rows.length == 0) response.send({ error: "No Rooms for this user_id" });
+        } else if (rows.length == 0) response.send({});
         else {
             let output = {};
             for (let i = 0; i < rows.length; i++) {
