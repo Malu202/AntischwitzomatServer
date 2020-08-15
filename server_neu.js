@@ -161,7 +161,10 @@ app.get('/roommeasurements', function (request, response) {
             let output = {};
             for (let i = 0; i < rows.length; i++) {
                 getRoomValues(rows[i], false, function (values) {
-                    output[rows[i].room_id] = values;
+                    output[rows[i].room_id] = {
+                        name: rows[i].name,
+                        measurements: values,
+                    }
                     if (Object.keys(output).length == rows.length) response.send(output);
                 })
             }
