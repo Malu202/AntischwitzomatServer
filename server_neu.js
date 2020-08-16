@@ -63,6 +63,7 @@ db.serialize(function () {
             endpoint TEXT NOT NULL,
             key_p256dh TEXT NOT NULL,
             key_auth TEXT NOT NULL,
+            active NUMERIC NOT NULL CHECK (active IN (0,1)),
             FOREIGN KEY (user_id) REFERENCES Users (user_id),
             FOREIGN KEY (room_id1) REFERENCES Rooms (room_id),
             FOREIGN KEY (room_id2) REFERENCES Rooms (room_id)
@@ -183,10 +184,7 @@ function checkNotification(notification) {
     let room_id1 = notification.room_id1;
     let room_id2 = notification.room_id2;
     let amount = notification.amount;
-    let message = notification.message;
 
-    let room1Value;
-    let room2Value;
     db.serialize(function () {
         db.all('SELECT * from Rooms WHERE room_id=(?) OR room_id=(?)', [room_id1, room_id2], function (err, room) {
             getRoomValues(room[0], true, function (room1Values) {
@@ -205,19 +203,26 @@ function checkNotification(notification) {
                         case "greaterthan":
                             if (room_id2 == null && room1Value > amount) {
                                 sendNotification(notification)
+                                break;
                             } else if (room1Value > (room2Value + amount)) {
                                 sendNotification(notification)
+                                break;
                             }
-                            break;
                         case "lessthan":
                             if (room_id2 == null && room1Value < amount) {
                                 sendNotification(notification)
+                                break;
                             } else if (room1Value < (room2Value - amount)) {
                                 sendNotification(notification)
+                                break;
                             }
-                            break;
 
                         default:
+                            console.log("Notification is active: " + notification.active);
+                            if (notification.active) console.log("Resetting active notification to inactive")
+                            db.run("UPDATE Notifications SET active=(?) WHERE notification_id=(?);", [false, notification.notification_id], function (err) {
+                                if (err) console.log(err)
+                            });
                             break;
                     }
 
@@ -228,14 +233,20 @@ function checkNotification(notification) {
 }
 
 function sendNotification(notification) {
-    console.log("sending notification")
-    push.send(notification.message, {
-        endpoint: notification.endpoint,
-        keys: {
-            p256dh: notification.key_p256dh,
-            auth: notification.key_auth
-        }
-    })
+    let active = notification.active;
+    if (active) {
+        console.log("notification already sent earlier");
+    } else {
+        console.log("sending notification")
+        push.send(notification.message, {
+            endpoint: notification.endpoint,
+            keys: {
+                p256dh: notification.key_p256dh,
+                auth: notification.key_auth
+            }
+        })
+    }
+    db.run("UPDATE Notifications SET active=(?) WHERE notification_id=(?);", [true, notification.notification_id]);
 }
 
 function getRoomValues(room, latestOnly, cb) {
@@ -461,10 +472,10 @@ function addNewNotification(res, user_id, type, value, room_id1, room_id2, amoun
             console.log(err)
         }
         else {
-            db.run(`INSERT INTO Notifications (user_id, type, value, room_id1, room_id2, amount, message, endpoint, key_p256dh, key_auth)
-        VALUES ((?),(?),(?),(?),(?),(?),(?),(?),(?),(?))`,
-                [id, type, value, room_id1, room_id2, amount, message, endpoint, key_p256dh, key_auth], function (err2) {
-                    console.log(err2)
+            db.run(`INSERT INTO Notifications (user_id, type, value, room_id1, room_id2, amount, message, endpoint, key_p256dh, key_auth, active)
+        VALUES ((?),(?),(?),(?),(?),(?),(?),(?),(?),(?),(?))`,
+                [id, type, value, room_id1, room_id2, amount, message, endpoint, key_p256dh, key_auth, false], function (err2) {
+                    if (err2) console.log(err2)
                     res.send({ "user_id": id, error: err2, notification_id: this.lastID });
                 });
         }
