@@ -26,12 +26,8 @@ var db = new sqlite3.Database(dbFile);
 
 var externalSensorManager = new ExternalSensorManager([
     new ZamgOgdSensor(),
-<<<<<<< HEAD
-    new OpenWeatherMapSensor(process.env.OPENWEATHERMAP_APIKEY)
-=======
     new OpenWeatherMapSensor(process.env.OPENWEATHERMAP_APIKEY),
     new HendlSensor()
->>>>>>> 4b8d0c7b8785223e6e11e71cd9ff1d54d0a50ac0
 ], db);
 
 db.serialize(function () {
