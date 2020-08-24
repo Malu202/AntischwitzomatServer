@@ -68,7 +68,7 @@ db.serialize(function () {
             value TEXT NOT NULL,
             room_id1 INTEGER NOT NULL,
             room_id2 INTEGER,
-            amount INTEGER,
+            amount DECIMAL,
             message TEXT,
             endpoint TEXT NOT NULL,
             key_p256dh TEXT NOT NULL,
