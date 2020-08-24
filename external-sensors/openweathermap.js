@@ -27,7 +27,7 @@ class OpenWeatherMapSensor {
     }
 
     getMeasurementIntervalSeconds() {
-        return 900;
+        return 60 * 10;
     }
 
     async getMeasurements() {

@@ -15,7 +15,7 @@ class HendlSensor {
     }
 
     getMeasurementIntervalSeconds() {
-        return 900;
+        return 450;
     }
 
     async getMeasurements() {
