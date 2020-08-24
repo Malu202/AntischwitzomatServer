@@ -1,7 +1,9 @@
 var express = require('express');
 var bodyParser = require('body-parser');
 var app = express();
-var push = require('./push-notifications')
+var push = require('./push-notifications');
+var ExternalSensorManager = require("./external-sensors/external-sensor-manager").ExternalSensorManager;
+var ZamgOgdSensor = require("./external-sensors/zamg-ogd").ZamgOgdSensor;
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
@@ -19,6 +21,10 @@ var dbFile = './.data/sqlite.db';
 var exists = fs.existsSync(dbFile);
 var sqlite3 = require('sqlite3').verbose();
 var db = new sqlite3.Database(dbFile);
+
+var externalSensorManager = new ExternalSensorManager([
+    new ZamgOgdSensor()
+], db);
 
 db.serialize(function () {
     if (!exists) {
@@ -92,27 +98,28 @@ app.post('/measurements', function (request, response) {
         date = new Date();
     }
     var sqllite_date = date.toISOString();
+    externalSensorManager.update().then(() => {
+        //if(id==null) create new id
+        addNewId("SENSORS", "sensor_id", sensor_id, function (err, newSensorId) {
+            //db.run("INSERT INTO Sensors (sensor_id)  VALUES ((?))", [sensor_id]);
+            // addNewMeasurement(newSensorId, sqllite_date, temp, hum, pres);
+            db.serialize(function () {
+                db.run('INSERT INTO Measurements (time, temperature, humidity, pressure, sensor_id) VALUES ((?),(?),(?),(?),(?))', [sqllite_date, temp, hum, pres, sensor_id]);
 
-    //if(id==null) create new id
-    addNewId("SENSORS", "sensor_id", sensor_id, function (err, newSensorId) {
-        //db.run("INSERT INTO Sensors (sensor_id)  VALUES ((?))", [sensor_id]);
-        // addNewMeasurement(newSensorId, sqllite_date, temp, hum, pres);
-        db.serialize(function () {
-            db.run('INSERT INTO Measurements (time, temperature, humidity, pressure, sensor_id) VALUES ((?),(?),(?),(?),(?))', [sqllite_date, temp, hum, pres, sensor_id]);
-
-            db.all('SELECT room_id from Rooms WHERE sensor_id1=(?) OR sensor_id2=(?)', [sensor_id, sensor_id], function (err, room_ids) {
-                console.log("updating " + room_ids.length + " rooms");
-                for (let i = 0; i < room_ids.length; i++) {
-                    let roomId = room_ids[i].room_id;
-                    db.all('SELECT * from Notifications WHERE room_id1=(?) OR room_id2=(?)', [roomId, roomId], function (err, notifications) {
-                        console.log("checking " + notifications.length + " notifications");
+                db.all('SELECT room_id from Rooms WHERE sensor_id1=(?) OR sensor_id2=(?)', [sensor_id, sensor_id], function (err, room_ids) {
+                    console.log("updating " + room_ids.length + " rooms");
+                    for (let i = 0; i < room_ids.length; i++) {
+                        let roomId = room_ids[i].room_id;
+                        db.all('SELECT * from Notifications WHERE room_id1=(?) OR room_id2=(?)', [roomId, roomId], function (err, notifications) {
+                            console.log("checking " + notifications.length + " notifications");
 
 
-                        for (let i = 0; i < notifications.length; i++) {
-                            checkNotification(notifications[i]);
-                        }
-                    });
-                }
+                            for (let i = 0; i < notifications.length; i++) {
+                                checkNotification(notifications[i]);
+                            }
+                        });
+                    }
+                });
             });
         });
     });
