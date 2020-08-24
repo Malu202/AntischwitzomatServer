@@ -5,6 +5,7 @@ var push = require('./push-notifications');
 var ExternalSensorManager = require("./external-sensors/external-sensor-manager").ExternalSensorManager;
 var ZamgOgdSensor = require("./external-sensors/zamg-ogd").ZamgOgdSensor;
 var OpenWeatherMapSensor = require("./external-sensors/openweathermap").OpenWeatherMapSensor;
+var HendlSensor = require("./external-sensors/hendl").HendlSensor;
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
@@ -25,7 +26,12 @@ var db = new sqlite3.Database(dbFile);
 
 var externalSensorManager = new ExternalSensorManager([
     new ZamgOgdSensor(),
+<<<<<<< HEAD
     new OpenWeatherMapSensor(process.env.OPENWEATHERMAP_APIKEY)
+=======
+    new OpenWeatherMapSensor(process.env.OPENWEATHERMAP_APIKEY),
+    new HendlSensor()
+>>>>>>> 4b8d0c7b8785223e6e11e71cd9ff1d54d0a50ac0
 ], db);
 
 db.serialize(function () {
