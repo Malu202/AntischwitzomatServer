@@ -24,7 +24,7 @@ var sqlite3 = require('sqlite3').verbose();
 var db = new sqlite3.Database(dbFile);
 
 var externalSensorManager = new ExternalSensorManager([
-    new ZamgOgdSensor(),    
+    new ZamgOgdSensor(),
     new OpenWeatherMapSensor(process.env.OPENWEATHERMAP_APIKEY)
 ], db);
 
@@ -269,7 +269,7 @@ function getRoomValues(room, latestOnly, cb) {
     let sensor_id1 = room.sensor_id1;
     let sensor_id2 = room.sensor_id2;
 
-    let query = 'SELECT sensor_id, time, temperature, humidity, pressure from Measurements WHERE sensor_id=(?) OR sensor_id=(?) ORDER BY sensor_id, time;'
+    let query = 'SELECT sensor_id, time, temperature, humidity, pressure from Measurements WHERE sensor_id=(?) OR sensor_id=(?) AND time > date("now", "start of day", "+4 hours") ORDER BY sensor_id, time;'
     if (latestOnly) query = 'SELECT sensor_id, max(time), temperature, humidity, pressure from Measurements WHERE sensor_id=(?) OR sensor_id=(?) GROUP BY sensor_id'
     db.all(query, [sensor_id1, sensor_id2], function (err, measurements) {
         if (err) {
