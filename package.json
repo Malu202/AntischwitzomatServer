@@ -5,9 +5,9 @@
   "name": "antischwitzomatserver",
   "version": "0.0.1",
   "description": "A simple Node app with SQLite as a database management system, instantly up and running.",
-  "main": "server.js",
+  "main": "server_neu.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server_neu.js"
   },
   "dependencies": {
     "body-parser": "*",
