@@ -42,6 +42,8 @@ db.serialize(function () {
             temperature DECIMAL,
             humidity DECIMAL,
             pressure DECIMAL,
+            voltage DECIMAL,
+            ontime INTEGER,
             FOREIGN KEY (sensor_id) REFERENCES Sensors(sensor_id)
         );`);
 
@@ -93,6 +95,9 @@ app.post('/measurements', function (request, response) {
     var temp = request.body.t / 100;
     var hum = request.body.h / 100;
     var pres = request.body.p / 10000;
+    pres = getSeaLevelPressure(pres, temp, sensor_id);
+    var vol = request.body.v / 10.24;
+    var ontime = request.body.o;
     var date = request.body.d;
     var date = new Date(date);
     response.send("saved " + temp + " " + hum + " " + pres + " at " + sqllite_date);
@@ -108,7 +113,7 @@ app.post('/measurements', function (request, response) {
             //db.run("INSERT INTO Sensors (sensor_id)  VALUES ((?))", [sensor_id]);
             // addNewMeasurement(newSensorId, sqllite_date, temp, hum, pres);
             db.serialize(function () {
-                db.run('INSERT INTO Measurements (time, temperature, humidity, pressure, sensor_id) VALUES ((?),(?),(?),(?),(?))', [sqllite_date, temp, hum, pres, sensor_id]);
+                db.run('INSERT INTO Measurements (time, temperature, humidity, pressure, voltage, ontime, sensor_id) VALUES ((?),(?),(?),(?),(?),(?),(?))', [sqllite_date, temp, hum, pres, vol, ontime, sensor_id]);
 
                 db.all('SELECT room_id from Rooms WHERE sensor_id1=(?) OR sensor_id2=(?)', [sensor_id, sensor_id], function (err, room_ids) {
                     console.log("updating " + room_ids.length + " rooms");
@@ -129,6 +134,25 @@ app.post('/measurements', function (request, response) {
     });
 });
 
+function getSeaLevelPressure(pressure, temperature, sensor_id) {
+    let height;
+    switch (sensor_id) {
+        case 1:
+            height = 171 + 8;
+            break;
+        case 2:
+            height = 171 + 8;
+            break;
+        case 3:
+            height = 160 + 10.5;
+            break;
+        default:
+            height = 0;
+            break;
+    }
+    return pressure * Math.pow((1 - (0.0065 * height / (temperature + 273.15 + 0.0065 * height))), -5.257);
+}
+
 app.delete('/measurements', function (request, response) {
     db.run('DELETE FROM Sensors');
     db.run('DELETE FROM Measurements');
@@ -140,29 +164,6 @@ app.delete('/measurements', function (request, response) {
 
 
 app.get('/roommeasurements', function (request, response) {
-    // let roomsStrings = [];
-    // roomsStrings = roomsStrings.concat(request.query.rooms);
-    // let rooms = [];
-    // for (let i = 0; i < roomsStrings.length; i++) {
-    //     let roomId = parseInt(roomsStrings[i]);
-    //     if (!isNaN(roomId) && roomId != null && roomId != undefined) {
-    //         rooms.push(roomId);
-    //     }
-    // }
-
-    // let arguments = rooms.map(function () { return '(?)' }).join(',');
-    // db.all(`SELECT * from Rooms WHERE room_id IN (${arguments})`, rooms, function (err, rows) {
-    //     if (err) console.log(err);
-    //     if (rooms.length == 0) response.send("no roomIds in url query");
-
-    //     let output = {};
-    //     for (let i = 0; i < rows.length; i++) {
-    //         getRoomValues(rows[i], false, function (values) {
-    //             output[rows[i].room_id] = values;
-    //             if (Object.keys(output).length == rows.length) response.send(output);
-    //         })
-    //     }
-    // });
     let user_id = request.query.user_id;
     db.all(`SELECT * from Rooms WHERE user_id=(?)`, [user_id], function (err, rows) {
         if (err) {
@@ -271,8 +272,8 @@ function getRoomValues(room, latestOnly, cb) {
     let sensor_id1 = room.sensor_id1;
     let sensor_id2 = room.sensor_id2;
 
-    let query = 'SELECT sensor_id, time, temperature, humidity, pressure from Measurements WHERE (sensor_id=(?) OR sensor_id=(?)) AND time > date("now", "start of day", "+4 hours") ORDER BY sensor_id, time;'
-    if (latestOnly) query = 'SELECT sensor_id, max(time), temperature, humidity, pressure from Measurements WHERE sensor_id=(?) OR sensor_id=(?) GROUP BY sensor_id'
+    let query = 'SELECT sensor_id, time, temperature, humidity, pressure, voltage from Measurements WHERE (sensor_id=(?) OR sensor_id=(?)) AND time > date("now", "start of day", "+4 hours") ORDER BY sensor_id, time;'
+    if (latestOnly) query = 'SELECT sensor_id, max(time), temperature, humidity, pressure, voltage from Measurements WHERE sensor_id=(?) OR sensor_id=(?) GROUP BY sensor_id'
     db.all(query, [sensor_id1, sensor_id2], function (err, measurements) {
         if (err) {
             console.log(err);
@@ -309,7 +310,7 @@ function getRoomValues(room, latestOnly, cb) {
             let sensor2MeasurementsInterpolated = [];
             let sensor2Index = 0;
             for (let i = 0; i < sensor1Measurements.length; i++) {
-                let temperature, humidity, pressure;
+                let temperature, humidity, pressure, voltage;
 
                 let sensor1Date = new Date(sensor1Measurements[i].time);
                 for (let j = sensor2Index; j < sensor2Measurements.length; j++) {
@@ -319,21 +320,24 @@ function getRoomValues(room, latestOnly, cb) {
                             temperature = sensor2Measurements[j].temperature;
                             humidity = sensor2Measurements[j].humidity;
                             pressure = sensor2Measurements[j].pressure;
+                            voltage = sensor2Measurements[j].voltage;
                         } else {
                             let previousSensor2Date = new Date(sensor2Measurements[j - 1].time);
                             let interpolationFactor = (sensor2Date.getTime() - sensor1Date.getTime()) / (sensor2Date.getTime() - previousSensor2Date.getTime());
                             temperature = sensor2Measurements[j].temperature + (sensor2Measurements[j].temperature - sensor2Measurements[j - 1].temperature) * interpolationFactor;
                             humidity = sensor2Measurements[j].humidity + (sensor2Measurements[j].humidity - sensor2Measurements[j - 1].humidity) * interpolationFactor;
                             pressure = sensor2Measurements[j].pressure + (sensor2Measurements[j].pressure - sensor2Measurements[j - 1].pressure) * interpolationFactor;
+                            voltage = sensor2Measurements[j].voltage + (sensor2Measurements[j].voltage - sensor2Measurements[j - 1].voltage) * interpolationFactor;
                         }
-                        sensor2MeasurementsInterpolated.push({ /*sensor_id: sensor2Measurements.sensor_id,*/ time: sensor1Measurements[i].time, "temperature": temperature, "humidity": humidity, "pressure": pressure });
+                        sensor2MeasurementsInterpolated.push({ /*sensor_id: sensor2Measurements.sensor_id,*/ time: sensor1Measurements[i].time, "temperature": temperature, "humidity": humidity, "pressure": pressure, "voltage": voltage });
                         break;
                     }
                     if (j == sensor2Measurements.length - 1 && sensor2Date.getTime() < sensor1Date.getTime()) {
                         temperature = sensor2Measurements[j].temperature;
                         humidity = sensor2Measurements[j].humidity;
                         pressure = sensor2Measurements[j].pressure;
-                        sensor2MeasurementsInterpolated.push({ sensor_id: sensor2Measurements.sensor_id, time: sensor1Measurements[i].time, "temperature": temperature, "humidity": humidity, "pressure": pressure });
+                        voltage = sensor2Measurements[j].voltage
+                        sensor2MeasurementsInterpolated.push({ sensor_id: sensor2Measurements.sensor_id, time: sensor1Measurements[i].time, "temperature": temperature, "humidity": humidity, "pressure": pressure, "voltage": voltage });
                         break;
                     }
                     sensor2Index = j;
