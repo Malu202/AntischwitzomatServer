@@ -68,7 +68,7 @@ db.serialize(function () {
             version INTEGER NOT NULL
         );`);
 
-        db.run(`insert into Migrations values(0,0);`);
+        db.run(`insert into Migrations(id, version) values(0,1);`);
 
         db.run(`CREATE TABLE Notifications (
             notification_id INTEGER PRIMARY KEY,
@@ -96,7 +96,7 @@ db.serialize(function () {
             let version = 0;
             let latestVersion = 1;
             if (!migrations.length) {
-                db.run(`insert into Migrations values(0,0);`);
+                db.run(`insert into Migrations(id,version) values(0,0);`);
             }
             else {
                 version = migrations[0].version;
