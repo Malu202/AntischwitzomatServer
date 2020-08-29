@@ -168,7 +168,7 @@ function addNewMeasurement(sensor_id, sqllite_date, temp, hum, pres, vol, ontime
 
 function getSeaLevelPressure(pressure, temperature, sensor_id) {
     let height;
-    switch (sensor_id) {
+    switch (parseInt(sensor_id)) {
         case 1:
             height = 171 + 8;
             break;
