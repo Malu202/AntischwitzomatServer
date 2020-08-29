@@ -117,16 +117,16 @@ app.get('/measurements', function (request, response) {
     });
 });
 
-app.post('/measurements', function (request, response) {
+app.post('/measurements', async function (request, response) {
     var sensor_id = request.body.i;
     var temp = request.body.t / 100;
     var hum = request.body.h / 100;
     var pres = request.body.p / 10000;
     pres = getSeaLevelPressure(pres, temp, sensor_id);
-    var vol = request.body.v / 10.24;
+    var vol = request.body.v;
     var ontime = request.body.o;
     var date = request.body.d;
-    var date = new Date(date);
+    date = new Date(date);
     response.send("saved " + temp + " " + hum + " " + pres + " at " + sqllite_date);
     console.log(request.body);
 
@@ -134,32 +134,37 @@ app.post('/measurements', function (request, response) {
         date = new Date();
     }
     var sqllite_date = date.toISOString();
-    externalSensorManager.update().then(() => {
-        //if(id==null) create new id
-        addNewId("SENSORS", "sensor_id", sensor_id, function (err, newSensorId) {
-            //db.run("INSERT INTO Sensors (sensor_id)  VALUES ((?))", [sensor_id]);
-            // addNewMeasurement(newSensorId, sqllite_date, temp, hum, pres);
-            db.serialize(function () {
-                db.run('INSERT INTO Measurements (time, temperature, humidity, pressure, voltage, ontime, sensor_id) VALUES ((?),(?),(?),(?),(?),(?),(?))', [sqllite_date, temp, hum, pres, vol, ontime, sensor_id]);
+    await addNewMeasurement(sensor_id, sqllite_date, temp, hum, pres, vol, ontime);
+    let measurements = await externalSensorManager.update();
+    for (let m of measurements) {
+        let n = m.measurement;
+        await addNewMeasurement(m.sensor_id, n.time.toISOString(), n.temperature, n.humidity, n.pressure, null, null);
+    }
+});
 
-                db.all('SELECT room_id from Rooms WHERE sensor_id1=(?) OR sensor_id2=(?)', [sensor_id, sensor_id], function (err, room_ids) {
+function addNewMeasurement(sensor_id, sqllite_date, temp, hum, pres, vol, ontime) {
+    return new Promise((resolve) => {
+        addNewId("SENSORS", "sensor_id", sensor_id, function (err, newSensorId) {
+            db.serialize(function () {
+                db.run('INSERT INTO Measurements (time, temperature, humidity, pressure, voltage, ontime, sensor_id) VALUES ((?),(?),(?),(?),(?),(?),(?))', [sqllite_date, temp, hum, pres, vol, ontime, newSensorId]);
+
+                db.all('SELECT room_id from Rooms WHERE sensor_id1=(?) OR sensor_id2=(?)', [newSensorId, newSensorId], function (err, room_ids) {
                     console.log("updating " + room_ids.length + " rooms");
                     for (let i = 0; i < room_ids.length; i++) {
                         let roomId = room_ids[i].room_id;
                         db.all('SELECT * from Notifications WHERE room_id1=(?) OR room_id2=(?)', [roomId, roomId], function (err, notifications) {
                             console.log("checking " + notifications.length + " notifications");
-
-
                             for (let i = 0; i < notifications.length; i++) {
                                 checkNotification(notifications[i]);
                             }
                         });
                     }
+                    resolve();
                 });
             });
         });
     });
-});
+}
 
 function getSeaLevelPressure(pressure, temperature, sensor_id) {
     let height;
@@ -501,7 +506,7 @@ function addNewId(table, column, id, cb) {
                 }
             } else {
                 console.log(`New id (${column}): ` + this.lastID);
-                id = this.lastID
+                id = this.lastID;
             }
             cb(err, id);
         });
