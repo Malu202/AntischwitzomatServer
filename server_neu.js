@@ -63,6 +63,13 @@ db.serialize(function () {
             user_id INTEGER PRIMARY KEY
         );`);
 
+        db.run(`CREATE TABLE Migrations (
+            id INTEGER PRIMARY KEY,
+            version INTEGER NOT NULL
+        );`);
+
+        db.run(`insert into Migrations values(0,0);`);
+
         db.run(`CREATE TABLE Notifications (
             notification_id INTEGER PRIMARY KEY,
             user_id INTEGER NOT NULL,
@@ -80,6 +87,26 @@ db.serialize(function () {
             FOREIGN KEY (room_id1) REFERENCES Rooms (room_id),
             FOREIGN KEY (room_id2) REFERENCES Rooms (room_id)
         );`);
+    } else {
+        db.run(`CREATE TABLE IF NOT EXISTS Migrations (
+            id INTEGER PRIMARY KEY,
+            version INTEGER NOT NULL
+        );`);
+        db.all('SELECT version from Migrations WHERE id = 0', function (err, migrations) {
+            let version = 0;
+            let latestVersion = 1;
+            if (!migrations.length) {
+                db.run(`insert into Migrations values(0,0);`);
+            }
+            else {
+                version = migrations[0].version;
+            }
+            if (version < 1) {
+                console.log("Applied Migration Version 1");
+                db.run(`ALTER TABLE Measurements ADD COLUMN ontime INTEGER;`);
+            }
+            db.run(`update Migrations set version = (?) where id = 0`, [latestVersion]);
+        });
     }
 });
 
