@@ -14,8 +14,13 @@ webPush.setVapidDetails(
   "6lCHCgNI63OIHMTraKS48TwhhDXGt3iM55gDIur6Yys"
 );
 
-module.exports.send = function(msg, pushSubscription) {
-  webPush.sendNotification(pushSubscription, msg).catch(function(e) {
+module.exports.send = function (msg, pushSubscription) {
+  webPush.sendNotification(pushSubscription, msg, {
+    headers: {
+      "Urgency": "high"
+    },
+    TTL: 3600
+  }).catch(function (e) {
     console.log(e);
   });
 };

@@ -243,33 +243,38 @@ function checkNotification(notification) {
 
                     console.log("room1: " + room1Value);
                     console.log("room2: " + room2Value);
+                    let bedingungZutreffend = false;
                     switch (type) {
                         case "greaterthan":
                             if (room_id2 == null && room1Value > amount) {
-                                sendNotification(notification)
-                                break;
+                                sendNotification(notification);
+                                bedingungZutreffend = true;
                             } else if (room1Value > (room2Value + amount)) {
-                                sendNotification(notification)
-                                break;
+                                sendNotification(notification);
+                                bedingungZutreffend = true;
                             }
+                            break;
                         case "lessthan":
                             if (room_id2 == null && room1Value < amount) {
-                                sendNotification(notification)
-                                break;
+                                sendNotification(notification);
+                                bedingungZutreffend = true;
                             } else if (room1Value < (room2Value - amount)) {
-                                sendNotification(notification)
-                                break;
+                                sendNotification(notification);
+                                bedingungZutreffend = true;
                             }
-
+                            break;
                         default:
-                            console.log("Notification is active: " + notification.active);
-                            if (notification.active) console.log("Resetting active notification to inactive")
+                            console.log("unknown notification type: " + type);
+                    }
+                    if (!bedingungZutreffend) {
+                        console.log("Notification is active: " + notification.active);
+                        if (notification.active) {
+                            console.log("Resetting active notification to inactive");
                             db.run("UPDATE Notifications SET active=(?) WHERE notification_id=(?);", [false, notification.notification_id], function (err) {
                                 if (err) console.log(err)
                             });
-                            break;
+                        }
                     }
-
                 });
             });
         });

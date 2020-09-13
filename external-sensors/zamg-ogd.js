@@ -41,7 +41,7 @@ class ZamgOgdSensor {
                             measurement: {
                                 temperature: cols[5] ? parseFloat(cols[5].replace(/,/g, ".")) : null,
                                 humidity: cols[7] ? parseFloat(cols[7].replace(/,/g, ".")) : null,
-                                pressure: cols[14] ? parseFloat(cols[14].replace(/,/g, ".")) : null,
+                                pressure: cols[14] ? parseFloat(cols[13].replace(/,/g, ".")) : null,
                                 time: new Date()
                             }
                         });
