@@ -197,6 +197,7 @@ app.delete('/measurements', function (request, response) {
 
 app.get('/roommeasurements', function (request, response) {
     let user_id = request.query.user_id;
+    let after = request.query.after;
     db.all(`SELECT * from Rooms WHERE user_id=(?)`, [user_id], function (err, rows) {
         if (err) {
             console.log(err);
@@ -205,7 +206,7 @@ app.get('/roommeasurements', function (request, response) {
         else {
             let output = {};
             for (let i = 0; i < rows.length; i++) {
-                getRoomValues(rows[i], false, function (values) {
+                getRoomValues(rows[i], false, after, function (values) {
                     output[rows[i].room_id] = {
                         name: rows[i].name,
                         measurements: values,
@@ -231,8 +232,8 @@ function checkNotification(notification) {
 
     db.serialize(function () {
         db.all('SELECT * from Rooms WHERE room_id=(?) OR room_id=(?)', [room_id1, room_id2], function (err, room) {
-            getRoomValues(room[0], true, function (room1Values) {
-                getRoomValues(room[1], true, function (room2Values) {
+            getRoomValues(room[0], true, null, function (room1Values) {
+                getRoomValues(room[1], true, null, function (room2Values) {
 
                     let room1Value = room1Values[0][value];
                     let room2Value = null;
@@ -298,7 +299,7 @@ function sendNotification(notification) {
     db.run("UPDATE Notifications SET active=(?) WHERE notification_id=(?);", [true, notification.notification_id]);
 }
 
-function getRoomValues(room, latestOnly, cb) {
+function getRoomValues(room, latestOnly, after, cb) {
     if (room == null) {
         cb(null);
         return;
@@ -309,9 +310,13 @@ function getRoomValues(room, latestOnly, cb) {
     let sensor_id1 = room.sensor_id1;
     let sensor_id2 = room.sensor_id2;
 
-    let query = 'SELECT sensor_id, time, temperature, humidity, pressure, voltage from Measurements WHERE (sensor_id=(?) OR sensor_id=(?)) AND time > date("now", "start of day", "+4 hours") ORDER BY sensor_id, time;'
-    if (latestOnly) query = 'SELECT sensor_id, max(time), temperature, humidity, pressure, voltage from Measurements WHERE sensor_id=(?) OR sensor_id=(?) GROUP BY sensor_id'
-    db.all(query, [sensor_id1, sensor_id2], function (err, measurements) {
+    let query = 'SELECT sensor_id, time, temperature, humidity, pressure, voltage from Measurements WHERE (sensor_id=(?) OR sensor_id=(?)) AND time > datetime((?)) ORDER BY sensor_id, time;'
+    let params = [sensor_id1, sensor_id2, after];
+    if (latestOnly) {
+        query = 'SELECT sensor_id, max(time), temperature, humidity, pressure, voltage from Measurements WHERE sensor_id=(?) OR sensor_id=(?) GROUP BY sensor_id'
+        params.pop();
+    }
+    db.all(query, params, function (err, measurements) {
         if (err) {
             console.log(err);
             cb(err, null)
