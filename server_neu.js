@@ -19,6 +19,7 @@ app.use(function (req, res, next) {
 });
 
 var fs = require('fs');
+const { time } = require('console');
 var dbFile = './.data/sqlite.db';
 var exists = fs.existsSync(dbFile);
 var sqlite3 = require('sqlite3').verbose();
@@ -140,6 +141,10 @@ app.post('/measurements', async function (request, response) {
         let n = m.measurement;
         await addNewMeasurement(m.sensor_id, n.time.toISOString(), n.temperature, n.humidity, n.pressure, null, null);
     }
+
+    checkForDeadSensors();
+    checkNotifications();
+
 });
 
 function addNewMeasurement(sensor_id, sqllite_date, temp, hum, pres, vol, ontime) {
@@ -148,21 +153,53 @@ function addNewMeasurement(sensor_id, sqllite_date, temp, hum, pres, vol, ontime
             db.serialize(function () {
                 db.run('INSERT INTO Measurements (time, temperature, humidity, pressure, voltage, ontime, sensor_id) VALUES ((?),(?),(?),(?),(?),(?),(?))', [sqllite_date, temp, hum, pres, vol, ontime, newSensorId]);
 
-                db.all('SELECT room_id from Rooms WHERE sensor_id1=(?) OR sensor_id2=(?)', [newSensorId, newSensorId], function (err, room_ids) {
-                    console.log("updating " + room_ids.length + " rooms");
-                    for (let i = 0; i < room_ids.length; i++) {
-                        let roomId = room_ids[i].room_id;
-                        db.all('SELECT * from Notifications WHERE room_id1=(?) OR room_id2=(?)', [roomId, roomId], function (err, notifications) {
-                            console.log("checking " + notifications.length + " notifications");
-                            for (let i = 0; i < notifications.length; i++) {
-                                checkNotification(notifications[i]);
-                            }
-                        });
-                    }
-                    resolve();
-                });
+                // checkForDeadSensors();
+
+                // db.all('SELECT room_id from Rooms WHERE sensor_id1=(?) OR sensor_id2=(?)', [newSensorId, newSensorId], function (err, room_ids) {
+                //     console.log("updating " + room_ids.length + " rooms");
+                //     for (let i = 0; i < room_ids.length; i++) {
+                //         let roomId = room_ids[i].room_id;
+                //         db.all('SELECT * from Notifications WHERE room_id1=(?) OR room_id2=(?)', [roomId, roomId], function (err, notifications) {
+                //             console.log("checking " + notifications.length + " notifications");
+                //             for (let i = 0; i < notifications.length; i++) {
+                //                 checkNotification(notifications[i]);
+                //             }
+                //         });
+                //     }
+                //     resolve();
+                // });
+                resolve();
             });
         });
+    });
+}
+
+function checkForDeadSensors() {
+    db.all('SELECT sensor_id, max(time), temperature, humidity, pressure, voltage from Measurements GROUP BY sensor_id', function (err, sensors) {
+        // console.log("error:")
+        // console.log(err)
+        // console.log("data:")
+        // console.log(sensors);
+
+        for (let i = 0; i < sensors.length; i++) {
+            let notMarkedDead = sensors[i].temperature && sensors[i].humidity && sensors[i].pressure;
+            let timeSinceLastMeasurement = (new Date - new Date(sensors[i]['max(time)'])) / (1000 * 60);
+
+            console.log("Sensor: " + sensors[i].sensor_id + ", time since last measurement: " + timeSinceLastMeasurement + ", marked dead: " + !notMarkedDead)
+            if (notMarkedDead && (timeSinceLastMeasurement > 130)) {
+                addNewMeasurement(sensors[i].sensor_id, (new Date()).toISOString(), null, null, null, 0, null)
+                console.log("marking sensor " + sensors[i].sensor_id + " as dead (id:" + sensors[i].sensor_id + ", timestamp:" + (new Date()).toISOString());
+            }
+        }
+    });
+}
+
+function checkNotifications() {
+    db.all('SELECT * from Notifications', function (err, notifications) {
+        console.log("checking " + notifications.length + " notifications");
+        for (let i = 0; i < notifications.length; i++) {
+            checkNotification(notifications[i]);
+        }
     });
 }
 
