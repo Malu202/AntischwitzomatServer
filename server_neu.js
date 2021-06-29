@@ -322,9 +322,9 @@ function checkNotification(notification) {
 function sendNotification(notification) {
     let active = notification.active;
     if (active) {
-        console.log("notification already sent earlier");
+        console.log("notification already sent earlier: \"" + notification.message + '"');
     } else {
-        console.log("sending notification")
+        console.log("sending notification: \"" + notification.message + '"')
         push.send(notification.message, {
             endpoint: notification.endpoint,
             keys: {
