@@ -21,6 +21,8 @@ module.exports.send = function (msg, pushSubscription) {
     },
     TTL: 3600
   }).catch(function (e) {
+    console.log("Push notification could not be sent:")
+    console.log('"' + msg + '"');
     console.log(e);
   });
 };
