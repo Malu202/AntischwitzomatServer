@@ -577,7 +577,9 @@ function addNewNotification(res, user_id, type, value, room_id1, room_id2, amoun
 }
 
 
-
+app.get('/logs', function (request, response) {
+    response.sendFile(__dirname + "/log-error.txt");
+});
 
 app.get('/mockup', function (request, response) {
     response.sendFile(__dirname + "/sampleDay_spikes.json");
