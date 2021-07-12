@@ -576,6 +576,25 @@ function addNewNotification(res, user_id, type, value, room_id1, room_id2, amoun
     });
 }
 
+app.post('/pushsubscriptionchange', function (req, res) {
+    let oldEndpoint = req.body.old_endpoint;
+    let newEndpoint = req.body.new_endpoint;
+    let newP256dh = req.body.new_p256dh;
+    let newAuth = req.body.new_auth;
+
+    if (oldEndpoint == null || newEndpoint == null || newP256dh == null || newAuth == null) {
+        console.log("Received faulty push data update: ")
+        console.log(req);
+        return;
+    }
+
+    db.run(`UPDATE Notifications SET (endpoint, key_p256dh, key_auth)
+                VALUES((?),(?),(?)) WHERE endpoint=(?);`,
+        [newEndpoint, newP256dh, newAuth, oldEndpoint], function (err) {
+            if (err) console.log(err);
+            res.send({ error: err });
+        });
+});
 
 app.get('/logs', function (request, response) {
     response.sendFile(__dirname + "/log-error.txt");
