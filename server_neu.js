@@ -586,6 +586,8 @@ app.post('/pushsubscriptionchange', function (req, res) {
         console.log("Received faulty push data update: ")
         console.log(req);
         return;
+    } else {
+        console.log("updating push subscription");
     }
 
     db.run(`UPDATE Notifications SET (endpoint, key_p256dh, key_auth)
