@@ -222,36 +222,68 @@ function getSeaLevelPressure(pressure, temperature, sensor_id) {
     return pressure * Math.pow((1 - (0.0065 * height / (temperature + 273.15 + 0.0065 * height))), -5.257);
 }
 
-app.delete('/measurements', function (request, response) {
-    db.run('DELETE FROM Sensors');
-    db.run('DELETE FROM Measurements');
-    db.run('DELETE FROM Rooms');
-    db.run('DELETE FROM Users');
-    db.run('DELETE FROM Notifications');
-    response.send("deleted database");
-});
+// app.delete('/measurements', function (request, response) {
+//     db.run('DELETE FROM Sensors');
+//     db.run('DELETE FROM Measurements');
+//     db.run('DELETE FROM Rooms');
+//     db.run('DELETE FROM Users');
+//     db.run('DELETE FROM Notifications');
+//     response.send("deleted database");
+// });
 
+function forEachRoomOfUser(user_id, cb, errFn) {
+    db.all(`SELECT * from Rooms WHERE user_id=(?)`, [user_id], function (err, rows) {
+        if (err) {
+            console.log(err);
+            errFn(err);
+        } else if (rows.length == 0) cb(null, rows.length);
+        else {
+
+            for (let i = 0; i < rows.length; i++) {
+                cb(rows[i], rows.length);
+            }
+        }
+    });
+}
 
 app.get('/roommeasurements', function (request, response) {
     let user_id = request.query.user_id;
     let after = request.query.after;
-    db.all(`SELECT * from Rooms WHERE user_id=(?)`, [user_id], function (err, rows) {
-        if (err) {
-            console.log(err);
-            response.send(err)
-        } else if (rows.length == 0) response.send({});
-        else {
-            let output = {};
-            for (let i = 0; i < rows.length; i++) {
-                getRoomValues(rows[i], false, after, function (values) {
-                    output[rows[i].room_id] = {
-                        name: rows[i].name,
-                        measurements: values,
-                    }
-                    if (Object.keys(output).length == rows.length) response.send(output);
-                })
-            }
+    let output = {};
+    forEachRoomOfUser(user_id, (room, roomcount) => {
+        if (0 == roomcount) {
+            response.send(output);
+            return;
         }
+        getRoomValues(room, false, after, function (values) {
+            output[room.room_id] = {
+                name: room.name,
+                measurements: values,
+            };
+            if (Object.keys(output).length == roomcount) response.send(output);
+        })
+    }, err => {
+        response.send(err);
+    });
+});
+
+app.get('/currentroommeasurements', (request, response) => {
+    let user_id = request.query.user_id;
+    let output = {};
+    forEachRoomOfUser(user_id, (room, roomcount) => {
+        if (0 == roomcount) {
+            response.send(output);
+            return;
+        }
+        getRoomValues(room, true, null, (values) => {
+            output[room.room_id] = {
+                name: room.name,
+                measurements: values[0],
+            };
+            if (Object.keys(output).length == roomcount) response.send(output);
+        })
+    }, err => {
+        response.send(err);
     });
 });
 
