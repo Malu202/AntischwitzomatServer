@@ -347,7 +347,7 @@ function getRoomValues(room, latestOnly, after, cb) {
     let sensor_id1 = room.sensor_id1;
     let sensor_id2 = room.sensor_id2;
 
-    let query = 'SELECT sensor_id, time, temperature, humidity, pressure, voltage from Measurements WHERE (sensor_id=(?) OR sensor_id=(?)) AND time > datetime((?)) ORDER BY sensor_id, time;'
+    let query = 'SELECT sensor_id, time, temperature, humidity, pressure, voltage from Measurements WHERE (sensor_id=(?) OR sensor_id=(?)) AND datetime(time) > datetime((?)) ORDER BY sensor_id, time;'
     let params = [sensor_id1, sensor_id2, after];
     if (latestOnly) {
         query = 'SELECT sensor_id, max(time), temperature, humidity, pressure, voltage from Measurements WHERE sensor_id=(?) OR sensor_id=(?) GROUP BY sensor_id'
