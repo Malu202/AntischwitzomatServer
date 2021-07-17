@@ -622,12 +622,43 @@ app.post('/pushsubscriptionchange', function (req, res) {
         console.log("updating push subscription");
     }
 
-    db.run(`UPDATE Notifications SET (endpoint, key_p256dh, key_auth)
-                VALUES((?),(?),(?)) WHERE endpoint=(?);`,
+    db.run(`UPDATE Notifications
+    SET endpoint = (?),
+    key_p256dh = (?),
+    key_auth = (?) WHERE endpoint=(?);`,
         [newEndpoint, newP256dh, newAuth, oldEndpoint], function (err) {
             if (err) console.log(err);
             res.send({ error: err });
         });
+});
+app.post('/pushSubscriptionUpdate', function (req, res) {
+    let newKeys = req.body.update;
+    let user_id = req.body.user_id;
+    let endpoint, p256dh, auth;
+
+    if (newKeys && newKeys.keys) {
+        endpoint = newKeys.endpoint;
+        p256dh = newKeys.keys.p256dh;
+        auth = newKeys.keys.auth;
+    }
+    if (user_id && endpoint && p256dh && auth) {
+
+        db.run(`UPDATE Notifications
+        SET endpoint = (?),
+        key_p256dh = (?),
+        key_auth = (?)
+        WHERE user_id=(?)`,
+            [endpoint, p256dh, auth, user_id], function (err) {
+                if (err) console.log(err);
+                let response = err ? err : "Push subscription update successfull";
+                res.send({ error: err, response: response });
+                if (err) console.log("Push subscription update failed for user_id: " + user_id + "\n" + response);
+            });
+
+    } else {
+        res.send({ res: "Push subscriptions were not updated because of empty or incomplete keys" });
+        console.log("Push subscriptions were not updated because of empty or incomplete keys");
+    }
 });
 
 app.get('/logs', function (request, response) {
