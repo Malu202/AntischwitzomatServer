@@ -356,14 +356,14 @@ function sendNotification(notification) {
     if (active) {
         console.log("notification already sent earlier: \"" + notification.message + '"');
     } else {
-        console.log("sending notification: \"" + notification.message + '"')
+        console.log("sending notification: \"" + notification.message + '"');
         push.send(notification.message, {
             endpoint: notification.endpoint,
             keys: {
                 p256dh: notification.key_p256dh,
                 auth: notification.key_auth
             }
-        })
+        }, notification.value == "voltage");
     }
     db.run("UPDATE Notifications SET active=(?) WHERE notification_id=(?);", [true, notification.notification_id]);
 }
