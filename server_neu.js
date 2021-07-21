@@ -486,22 +486,22 @@ function averageMeasurement(roomId, data1, data2) {
     return output;
 }
 
-app.get('/s', function (req, res) {
-    db.all('SELECT * from Notifications', function (err, rows) {
-        let notifications = rows;
-        console.log(notifications)
-        for (let i = 0; i < notifications.length; i++) {
-            push.send("howdy", {
-                endpoint: notifications[i].endpoint,
-                keys: {
-                    p256dh: notifications[i].key_p256dh,
-                    auth: notifications[i].key_auth
-                }
-            })
-        };
-        res.send("sent " + notifications.length + " request(s)")
-    });
-})
+// app.get('/s', function (req, res) {
+//     db.all('SELECT * from Notifications', function (err, rows) {
+//         let notifications = rows;
+//         console.log(notifications)
+//         for (let i = 0; i < notifications.length; i++) {
+//             push.send("howdy", {
+//                 endpoint: notifications[i].endpoint,
+//                 keys: {
+//                     p256dh: notifications[i].key_p256dh,
+//                     auth: notifications[i].key_auth
+//                 }
+//             })
+//         };
+//         res.send("sent " + notifications.length + " request(s)")
+//     });
+// })
 
 app.post('/notifications', function (req, res) {
     let user_id = req.body.user_id;
@@ -609,6 +609,7 @@ function addNewNotification(res, user_id, type, value, room_id1, room_id2, amoun
 }
 
 app.post('/pushsubscriptionchange', function (req, res) {
+    console.log("pushsubscriptionchange!!!!");
     let oldEndpoint = req.body.old_endpoint;
     let newEndpoint = req.body.new_endpoint;
     let newP256dh = req.body.new_p256dh;
@@ -618,18 +619,32 @@ app.post('/pushsubscriptionchange', function (req, res) {
         console.log("Received faulty push data update: ")
         console.log(req);
         return;
-    } else {
-        console.log("updating push subscription");
     }
+    db.all(`SELECT
+            notification_id,
+            user_id,
+            endpoint
+        FROM Notifications WHERE endpoint=(?);`, [oldEndpoint], function (err, rows) {
+        let changed = false;
+        for (let i = 0; i < rows.length; i++) {
+            if (rows[i].endpoint != endpoint) {
+                console.log("Push subscription keys were changed for user: " + rows[i].user_id + ", notification_id: " + notification_id);
+                changed = true;
+                break;
+            }
+        }
+        console.log("updating push subscription");
 
-    db.run(`UPDATE Notifications
-    SET endpoint = (?),
-    key_p256dh = (?),
-    key_auth = (?) WHERE endpoint=(?);`,
-        [newEndpoint, newP256dh, newAuth, oldEndpoint], function (err) {
-            if (err) console.log(err);
-            res.send({ error: err });
-        });
+        db.run(`UPDATE Notifications
+                SET endpoint = (?),
+                key_p256dh = (?),
+                key_auth = (?) WHERE endpoint=(?);`,
+            [newEndpoint, newP256dh, newAuth, oldEndpoint], function (err) {
+                if (err) console.log(err);
+                res.send({ error: err });
+            });
+    });
+
 });
 app.post('/pushSubscriptionUpdate', function (req, res) {
     let newKeys = req.body.update;
@@ -642,18 +657,36 @@ app.post('/pushSubscriptionUpdate', function (req, res) {
         auth = newKeys.keys.auth;
     }
     if (user_id && endpoint && p256dh && auth) {
-
-        db.run(`UPDATE Notifications
+        db.all(`SELECT
+        notification_id,
+        endpoint,
+        key_p256dh,
+        key_auth
+        FROM Notifications WHERE user_id=(?);`, [user_id], function (err, rows) {
+            let changed = false;
+            for (let i = 0; i < rows.length; i++) {
+                if (rows[i].endpoint != endpoint && rows[i].p256dh != p256dh && rows[i].auth != auth) {
+                    console.log("Push subscription keys were changed for user: " + user_id + ", notification id: " + rows[i].notification_id);
+                    changed = true;
+                    break;
+                }
+            }
+            if (!changed) {
+                res.send({ response: "Unchanged", error: null });
+                return;
+            }
+            db.run(`UPDATE Notifications
         SET endpoint = (?),
         key_p256dh = (?),
         key_auth = (?)
         WHERE user_id=(?)`,
-            [endpoint, p256dh, auth, user_id], function (err) {
-                if (err) console.log(err);
-                let response = err ? err : "Push subscription update successfull";
-                res.send({ error: err, response: response });
-                if (err) console.log("Push subscription update failed for user_id: " + user_id + "\n" + response);
-            });
+                [endpoint, p256dh, auth, user_id], function (err) {
+                    if (err) console.log(err);
+                    let response = err ? err : "Push subscription update successfull";
+                    res.send({ error: err, response: response });
+                    if (err) console.log("Push subscription update failed for user_id: " + user_id + "\n" + response);
+                });
+        })
 
     } else {
         res.send({ res: "Push subscriptions were not updated because of empty or incomplete keys" });
