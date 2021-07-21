@@ -695,7 +695,7 @@ app.post('/pushSubscriptionUpdate', function (req, res) {
 });
 
 app.get('/logs', function (request, response) {
-    response.sendFile(__dirname + "/log-error.txt");
+    response.sendFile(__dirname + ".data/log.txt");
 });
 
 app.get('/mockup', function (request, response) {
@@ -710,7 +710,8 @@ var origlog = console.log;
 
 console.log = function (obj, ...placeholders) {
     let d = new Date();
-    let timeString = d.toLocaleDateString('de-DE') + ", " + d.toLocaleTimeString('de-DE') + ":" + d.getMilliseconds() + ": ";
+    const options = { weekday: 'narrow', year: 'numeric', month: 'numeric', day: 'numeric', hour12: false };
+    let timeString = d.toLocaleTimeString('de-DE', options) + ":" + d.getMilliseconds() + ": ";
 
     if (typeof obj === 'string')
         placeholders.unshift(timeString + " " + obj);
