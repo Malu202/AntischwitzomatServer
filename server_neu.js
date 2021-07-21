@@ -705,3 +705,20 @@ app.get('/mockup', function (request, response) {
 app.get('/mockup2', function (request, response) {
     response.sendFile(__dirname + "/sampleDay_fewSpikes.json");
 });
+
+var origlog = console.log;
+
+console.log = function (obj, ...placeholders) {
+    let d = new Date();
+    let timeString = d.toLocaleDateString('de-DE') + ", " + d.toLocaleTimeString('de-DE') + ":" + d.getMilliseconds() + ": ";
+
+    if (typeof obj === 'string')
+        placeholders.unshift(timeString + " " + obj);
+    else {
+        // This handles console.log( object )
+        placeholders.unshift(obj);
+        placeholders.unshift(timeString + " %j");
+    }
+
+    origlog.apply(this, placeholders);
+};

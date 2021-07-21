@@ -7,10 +7,10 @@
   "description": "A simple Node app with SQLite as a database management system, instantly up and running.",
   "main": "server_neu.js",
   "scripts": {
-    "start": "node server_neu.js 2>&1 | tee -a log-error.txt"
+    "start": "node server_neu.js 2>&1 | tee -a .data/log.txt"
   },
   "engines": {
-   "node": "12.x"
+    "node": "12.x"
   },
   "dependencies": {
     "body-parser": "*",
