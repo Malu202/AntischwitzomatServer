@@ -249,13 +249,14 @@ function forEachRoomOfUser(user_id, cb, errFn) {
 app.get('/roommeasurements', function (request, response) {
     let user_id = request.query.user_id;
     let after = request.query.after;
+    let before = request.query.before;
     let output = {};
     forEachRoomOfUser(user_id, (room, roomcount) => {
         if (0 == roomcount) {
             response.send(output);
             return;
         }
-        getRoomValues(room, false, after, function (values) {
+        getRoomValues(room, false, after, before, function (values) {
             output[room.room_id] = {
                 name: room.name,
                 measurements: values,
@@ -275,7 +276,7 @@ app.get('/currentroommeasurements', (request, response) => {
             response.send(output);
             return;
         }
-        getRoomValues(room, true, null, (values) => {
+        getRoomValues(room, true, null, null, (values) => {
             output[room.room_id] = {
                 name: room.name,
                 measurements: values[0],
@@ -301,8 +302,8 @@ function checkNotification(notification) {
 
     db.serialize(function () {
         db.all('SELECT * from Rooms WHERE room_id=(?) OR room_id=(?)', [room_id1, room_id2], function (err, room) {
-            getRoomValues(room[0], true, null, function (room1Values) {
-                getRoomValues(room[1], true, null, function (room2Values) {
+            getRoomValues(room[0], true, null, null, function (room1Values) {
+                getRoomValues(room[1], true, null, null, function (room2Values) {
 
                     let room1Value = room1Values[0][value];
                     let room2Value = null;
@@ -368,7 +369,7 @@ function sendNotification(notification) {
     db.run("UPDATE Notifications SET active=(?) WHERE notification_id=(?);", [true, notification.notification_id]);
 }
 
-function getRoomValues(room, latestOnly, after, cb) {
+function getRoomValues(room, latestOnly, after, before, cb) {
     if (room == null) {
         cb(null);
         return;
@@ -379,10 +380,16 @@ function getRoomValues(room, latestOnly, after, cb) {
     let sensor_id1 = room.sensor_id1;
     let sensor_id2 = room.sensor_id2;
 
-    let query = 'SELECT sensor_id, time, temperature, humidity, pressure, voltage from Measurements WHERE (sensor_id=(?) OR sensor_id=(?)) AND datetime(time) > datetime((?)) ORDER BY sensor_id, time;'
-    let params = [sensor_id1, sensor_id2, after];
+    let query;
+    let params = [sensor_id1, sensor_id2, after, before];
+    if (before && after) query = 'SELECT sensor_id, time, temperature, humidity, pressure, voltage from Measurements WHERE (sensor_id=(?) OR sensor_id=(?)) AND datetime(time) > datetime((?)) AND datetime(time) < datetime((?)) ORDER BY sensor_id, time;'
+    else if (after) {
+        query = 'SELECT sensor_id, time, temperature, humidity, pressure, voltage from Measurements WHERE (sensor_id=(?) OR sensor_id=(?)) AND datetime(time) > datetime((?)) ORDER BY sensor_id, time;';
+        params.pop();
+    }
     if (latestOnly) {
         query = 'SELECT sensor_id, max(time), temperature, humidity, pressure, voltage from Measurements WHERE sensor_id=(?) OR sensor_id=(?) GROUP BY sensor_id'
+        params.pop();
         params.pop();
     }
     db.all(query, params, function (err, measurements) {
