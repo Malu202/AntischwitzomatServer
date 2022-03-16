@@ -305,6 +305,12 @@ function checkNotification(notification) {
             getRoomValues(room[0], true, null, null, function (room1Values) {
                 getRoomValues(room[1], true, null, null, function (room2Values) {
 
+                    // room_id1 or room_id2 might be deleted rooms
+                    // getRoomValues returns null for a null room
+                    if (!room1Values || !room2Values) {
+                        return;
+                    }
+
                     let room1Value = room1Values[0][value];
                     let room2Value = null;
 
