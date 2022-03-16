@@ -307,7 +307,7 @@ function checkNotification(notification) {
 
                     // room_id1 or room_id2 might be deleted rooms
                     // getRoomValues returns null for a null room
-                    if (!room1Values || !room2Values) {
+                    if (!room1Values || (room_id2 != null && !room2Values)) {
                         return;
                     }
 
