@@ -119,7 +119,7 @@ app.get('/measurements', function (request, response) {
 });
 
 app.post('/measurements', async function (request, response) {
-    if (req.body.constructor === Object && Object.keys(req.body).length === 0) {
+    if (request.body.constructor === Object && Object.keys(request.body).length === 0) {
         console.log("received empty measurement request, aborting");
         response.send("received empty measurement request, aborting");
         return;
