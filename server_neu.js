@@ -119,6 +119,11 @@ app.get('/measurements', function (request, response) {
 });
 
 app.post('/measurements', async function (request, response) {
+    if (req.body.constructor === Object && Object.keys(req.body).length === 0) {
+        console.log("received empty measurement request, aborting");
+        response.send("received empty measurement request, aborting");
+        return;
+    }
     var sensor_id = request.body.i;
     var temp = request.body.t / 100;
     var hum = request.body.h / 100;
