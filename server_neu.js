@@ -307,8 +307,16 @@ function checkNotification(notification) {
 
     db.serialize(function () {
         db.all('SELECT * from Rooms WHERE room_id=(?) OR room_id=(?)', [room_id1, room_id2], function (err, room) {
-            getRoomValues(room[0], true, null, null, function (room1Values) {
-                getRoomValues(room[1], true, null, null, function (room2Values) {
+            
+            if (room == null || room.length == 0) { 
+                console.log("Both rooms of notification " + notification.id + " are not found");
+                return;
+            }
+            let room1 = room[0].room_id == room_id1 ? room[0] : room[1];
+            let room2 = room[0].room_id == room_id2 ? room[0] : room[1];
+
+            getRoomValues(room1, true, null, null, function (room1Values) {
+                getRoomValues(room2, true, null, null, function (room2Values) {
 
                     // room_id1 or room_id2 might be deleted rooms
                     // getRoomValues returns null for a null room
